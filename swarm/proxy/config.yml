@@ -1,0 +1,7 @@
+tls:
+  certificates:
+    - certFile: "/opt/secure/deploy-cert.crt"
+      keyFile: "/opt/secure/deploy-keystore-unencrypted.pem"
+  options:
+    default:
+      sniStrict: true

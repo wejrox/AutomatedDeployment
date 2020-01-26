@@ -1,2 +1,2 @@
 # Automated-Deployment
- Ansible and Docker deployment for my personal projects
+ Ansible and Docker swarm deployment for my personal projects.

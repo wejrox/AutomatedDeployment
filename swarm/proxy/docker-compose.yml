@@ -1,0 +1,79 @@
+# Traefik Stack
+#
+# Traefik is a reverse proxy that we use to encrypt insecure Swarm services.
+# Traefik is configured by adding labels to other services, which are then
+# introspected and used by Traefik dynamically.
+#
+# One example of this introspection is in the Traefik service below, which:
+# - Sets up a "frontend rule", which is used to determine whether or not to route to the service.
+#   This rule routes all URLs with a path prefix of /traefik/ to the traefik service, and then strips
+#   /traefik/ from the path.
+# - Attaches to the traefik_overlay network.
+# - Routes to the internal port 8080 of the traefik service.
+#
+# Services proxied by Traefik must also be connected to the traefik_overlay network,
+# which must be a swarm overlay network.
+#
+# Stack contents:
+# - Traefik
+#    - Reverse proxy.
+#    - Introspects docker containers to determine required routing.
+#    - Routes requests to the node based on pattern matching.
+#
+# Stack responsibilities:
+# - Handles all the subdomain based routing for the swarm node.
+
+version: "3.7"
+
+services:
+  proxy:
+    image: traefik:2.1.2
+    command:
+      - --providers.docker=true
+      - --providers.docker.swarmMode=true
+      - --providers.docker.exposedbydefault=false
+      - --providers.docker.network=traefik_public
+      # The file provider must be set up to configure TLS.
+      - --providers.file=true
+      - --providers.file.filename=/usr/traefik/config.yml
+      - --entrypoints.http.address=:8443
+      - --entrypoints.tcp.address=:443
+      # Opens port 8080. We only expose 443 anyway, so this is fine.
+      - --api.insecure=true
+      - --accesslog
+    volumes:
+      # It's insecure to attach directly to the docker socket. Find a better way to do it, possibly through a closed off Traefik agent service?
+      - /var/run/docker.sock:/var/run/docker.sock
+      - tmp:/tmp
+      - ${CERT_PATH}:/opt/secure/deploy-cert.crt:ro
+      - ${KEYSTORE_PATH_UNENCRYPTED}:/opt/secure/deploy-keystore-unencrypted.pem:ro
+      - ./config.yml:/usr/traefik/config.yml:ro
+    networks:
+      - proxy_ext
+    ports:
+      - 8443:8443
+      - 443:443
+    deploy:
+      mode: global
+      placement:
+        constraints:
+          - node.role == manager
+      labels:
+        - traefik.enable=true
+        - traefik.http.routers.proxy.entrypoints=tcp
+        - traefik.http.routers.proxy.rule=${PUBLIC_ROUTE}
+        - traefik.http.routers.proxy.tls=true
+        # Internal port to route to.
+        - traefik.http.services.proxy.loadbalancer.server.port=8080
+      update_config:
+        parallelism: 1
+        delay: 10s
+      restart_policy:
+        condition: on-failure
+
+volumes:
+  tmp:
+
+networks:
+  proxy_ext:
+    external: true

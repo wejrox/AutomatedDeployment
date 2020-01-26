@@ -1,0 +1,45 @@
+# Portainer Stack.
+#
+# Portainer providers a web UI to manage a Docker Swarm cluster.
+#
+# An agent runs on each swarm node and volume mounts all of the Docker info it needs.
+# The server provides a web UI to manage the swarm.
+
+version: "3.7"
+
+services:
+  agent:
+    image: portainer/agent:1.4.0
+    environment:
+      AGENT_CLUSTER_ADDR: tasks.agent
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ${DOCKER_DATA_DIR}/volumes:/var/lib/docker/volumes:ro
+    networks:
+      - net
+    deploy:
+      mode: global
+
+  server:
+    image: portainer/portainer:1.22.0
+    command: -H tcp://tasks.agent:9001 --tlsskipverify
+    volumes:
+      - ${PORTAINER_DATA_DIR}:/data
+    networks:
+      - net
+      - proxy_ext
+    deploy:
+      placement:
+        constraints:
+          - node.role == manager
+      labels:
+        - traefik.enable=true
+        - traefik.http.routers.portainer.entrypoints=web
+        - traefik.http.routers.portainer.rule=${PUBLIC_ROUTE}
+        - traefik.http.routers.portainer.tls=true
+        - traefik.http.services.portainer.loadbalancer.server.port=9000
+
+networks:
+  net:
+  proxy_ext:
+    external: true

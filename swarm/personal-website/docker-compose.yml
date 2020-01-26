@@ -1,0 +1,14 @@
+version: "3.7"
+
+services:
+  personal-website:
+    image: "wejrox/personal-website:${IMAGE_TAG}"
+    deploy:
+      labels:
+        - traefik.enable=true
+        - traefik.tcp.routers.proxy.entrypoints=tcp
+        - traefik.tcp.routers.proxy.rule=${PUBLIC_ROUTE}
+        - traefik.tcp.routers.proxy.tls=true
+        # Internal port to route to.
+        - traefik.tcp.services.proxy.loadbalancer.server.port=443
+    volumes:
